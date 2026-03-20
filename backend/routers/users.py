@@ -11,17 +11,14 @@ def root():
 
 class User(BaseModel):
     name: str
-    age : int
+    age : int 
     email : str | None = None # Here None = None means email is not required attribute. it is not mandatory
     bank_balance : int = 0 # here =0 after datatype means that if user didnt give this attribute take 0 as default
 
 @router.post("/")
 def create_user(user : User):
+    print(user.name)
     return{
         "Message":"User successfully created",
         "user":user
     }
-@router.get("/")
-def get_users():
-    return {'Name':"Bhargav"}
-
