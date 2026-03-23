@@ -1,72 +1,67 @@
-from fastapi import APIRouter,Response,status  #response used to change response statuscodes.status provides codes
-from fastapi import HTTPException  # used to rise errors
+from fastapi import APIRouter,Response,status,HTTPException  #response used to change response statuscodes.status provides codes.HTTPEXECPTION used to raise errors and change status codes
 from pydantic import BaseModel
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from backend.app.Database.database import SessionLocal,engine,get_db
+from backend.app.Database.models import Base,Post
+from backend.app.schema import PostBase,PostCreate,PostResponse
+from typing import List
 router = APIRouter()
 
+#_________post_________
+# Create post
 
-class Post(BaseModel):
-    # def __init__(self):
-        title :str
-        data : str
-        # tags : str | None = None
-
-def isIdExist(id:int):
-     for data in database:
-         if data['id'] == id :
-              return True
-     return False
-
-def getIndex(id:int):
-     if isIdExist(id):
-        for i in range(len(database)):
-            if  database[i]['id'] == id:
-                return i
-        return None
-     
-
-database = [{"title":"My first post","data":"img1uy3y2y81.jpeg","id":-1}]
-
-
-
-@router.get('/')
-def get_posts(response : Response):
-    posts = database[1:]
-    if not posts:
-         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND , detail='No posts')
-        # or
-        #  response.status_code = status.HTTP_400_BAD_REQUEST
-        #  return {"message":"No posts"}
-    return posts
-
-@router.post('/')
-def create_post(post : Post):
-    p = post.dict()
-    prev_id = database[-1].get("id",0)
-    p["id"] = prev_id + 1
-    database.append(p)
+@router.post('/',status_code=status.HTTP_201_CREATED)
+def create_post(post : PostCreate , db : Session = Depends(get_db)):
+    new_post = Post(title = post.title,content = post.content)
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
     return {"Message":"post created"}
 
+
+#_________get_________
+# get all posts
+@router.get('/',response_model=List[PostResponse])
+def get_posts(db : Session = Depends(get_db)):
+    posts = db.query(Post).all()
+    if not posts:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail='No posts uploaded yet')
+    return posts
+
+#get single post 
+@router.get('/{id}',response_model = PostResponse)
+def get_one_post(id : int, db : Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == id).first()
+    if  not post :
+         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Post not found")
+    return post
+
+#____delete______
+#delete post
 @router.delete('/{id}')
-def delete_post(id:int):
-    idx = getIndex(id)
-    if not idx:
-          raise HTTPException(status_code=status.HTTP_204_NO_CONTENT,detail=f"no content available with id: {id}")
-    database.pop(idx)
-    return {"deleted post":id}
+def delete_post(id:int , db:Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == id)
+    if not post.first():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND , detail="No content")
+    post.delete(synchronize_session = False)
+    db.commit()
+    return {"message":"deleted"}
 
-@router.get('/{id}')
-def get_one_post(id : int):
-    idx = getIndex(id)
-    if not idx :
-          raise HTTPException(status_code=status.HTTP_204_NO_CONTENT,detail=f"Post with the id: {id} does not exit")
-    return database[idx]
 
+#_________put_________
+#Update post
 @router.put('/{id}')
-def update_post(id:int,post:Post):
-    idx = getIndex(id)
-    if not idx:
-          raise HTTPException(status_code=status.HTTP_204_NO_CONTENT,detail=f"no post with id: {id} ")
-    post_dict = post.model_dump()
-    post_dict['id'] = id
-    database[idx] = post_dict
-    return {"message":f"Updated succesfully"}
+def update_post(id:int,post_body:PostCreate , db: Session = Depends(get_db)):
+    post = db.query(Post).filter(Post.id == id)
+    if not post.first():
+          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"no post with id: {id} ")
+    post_dict = post_body.model_dump()
+    post.update({
+        "title":post_dict["title"],
+        "content":post_dict["content"]
+    })
+    db.commit()
+    return {"Message":"post updated"}
+

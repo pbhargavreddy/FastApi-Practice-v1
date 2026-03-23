@@ -1,10 +1,13 @@
 from fastapi import FastAPI,Response,status 
-from app.routers import users,posts,inputTypes
+from backend.app.routers import users,posts,inputTypes
 from pydantic import BaseModel   #BaseModel is used to check Data type and also type convertion.
-
+from backend.app.Database.database import engine
+from backend.app.Database.models import Base
+from backend.app.Database import models
 
 app = FastAPI()
 
+Base.metadata.create_all(bind=engine)
 
 # app.include_router(users.router ,prefix = '/hi')  # whene used prefix = '/users' all routes start from /users
 app.include_router(posts.router , prefix = '/posts')
